@@ -11,6 +11,14 @@ export type SudokuBoard = number[][];
 
 export const sudokuPresets: SudokuPreset[] = [
   {
+    id: '4x4',
+    size: 4,
+    blockRows: 2,
+    blockCols: 2,
+    label: '4 x 4',
+    subtitle: '4 rows, 4 columns, 2 x 2 subgrid',
+  },
+  {
     id: '6x6',
     size: 6,
     blockRows: 2,
@@ -25,6 +33,14 @@ export const sudokuPresets: SudokuPreset[] = [
     blockCols: 3,
     label: '9 x 9',
     subtitle: '9 rows, 9 columns, 3 x 3 subgrid',
+  },
+  {
+    id: '12x12',
+    size: 12,
+    blockRows: 3,
+    blockCols: 4,
+    label: '12 x 12',
+    subtitle: '12 rows, 12 columns, 3 x 4 subgrid',
   },
 ];
 

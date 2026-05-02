@@ -67,7 +67,7 @@ export function SudokuSolverApp() {
     }
 
     const sanitizedValue = rawValue.replace(/[^0-9]/g, '');
-    const nextValue = sanitizedValue === '' ? 0 : Number(sanitizedValue[sanitizedValue.length - 1]);
+    const nextValue = sanitizedValue === '' ? 0 : Number(sanitizedValue);
 
     if (nextValue > selectedPreset.size) {
       return;
@@ -176,7 +176,8 @@ export function SudokuSolverApp() {
           <View style={styles.surfaceCard}>
             <Text style={styles.sectionTitle}>Choose Sudoku size</Text>
             <Text style={styles.sectionCopy}>
-              `9 x 9` uses `3 x 3` subgrids and `6 x 6` uses `2 x 3` subgrids.
+              `4 x 4` uses `2 x 2`, `6 x 6` uses `2 x 3`, `9 x 9` uses `3 x 3`, and `12 x 12` uses `3 x 4`
+              subgrids.
             </Text>
 
             <View style={styles.presetGrid}>
@@ -294,11 +295,15 @@ function SudokuBoardView({
   onChangeCell,
   width,
 }: SudokuBoardViewProps) {
-  const maxBoardWidth = preset.size === 9 ? 396 : 360;
-  const minimumBoardWidth = preset.size === 9 ? 252 : 240;
+  const maxBoardWidth =
+    preset.size === 12 ? 420 : preset.size === 9 ? 396 : preset.size === 6 ? 360 : 320;
+  const minimumBoardWidth =
+    preset.size === 12 ? 264 : preset.size === 9 ? 252 : preset.size === 6 ? 240 : 220;
   const availableWidth = Math.max(minimumBoardWidth, Math.min(width - 52, maxBoardWidth));
   const cellSize = Math.floor(availableWidth / preset.size);
   const boardSize = cellSize * preset.size;
+  const cellFontSize = preset.size >= 12 ? 12 : preset.size >= 9 ? 16 : 20;
+  const inputMaxLength = String(preset.size).length;
 
   return (
     <View style={[styles.boardShell, { width: boardSize + 18 }]}>
@@ -323,11 +328,12 @@ function SudokuBoardView({
                   importantForAutofill="no"
                   keyboardType={Platform.select({ ios: 'number-pad', android: 'numeric', default: 'numeric' })}
                   key={`${rowIndex}-${colIndex}`}
-                  maxLength={1}
+                  maxLength={inputMaxLength}
                   onChangeText={(nextValue) => onChangeCell?.(rowIndex, colIndex, nextValue)}
                   style={[
                     styles.cellInput,
                     {
+                      fontSize: cellFontSize,
                       width: cellSize,
                       height: cellSize,
                       borderTopWidth,
@@ -347,6 +353,7 @@ function SudokuBoardView({
                 style={[
                   styles.cellOutput,
                   {
+                    paddingHorizontal: preset.size >= 12 ? 1 : 0,
                     width: cellSize,
                     height: cellSize,
                     borderTopWidth,
@@ -356,7 +363,13 @@ function SudokuBoardView({
                   },
                 ]}
               >
-                <Text style={[styles.cellOutputText, isUserInput ? styles.givenValue : styles.solvedValue]}>
+                <Text
+                  style={[
+                    styles.cellOutputText,
+                    { fontSize: cellFontSize },
+                    isUserInput ? styles.givenValue : styles.solvedValue,
+                  ]}
+                >
                   {value === 0 ? '' : value}
                 </Text>
               </View>
