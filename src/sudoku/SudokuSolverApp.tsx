@@ -1,6 +1,8 @@
+import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  type LayoutChangeEvent,
   Platform,
   Pressable,
   SafeAreaView,
@@ -26,16 +28,37 @@ export function SudokuSolverApp() {
   const [selectedPreset, setSelectedPreset] = useState<SudokuPreset | null>(null);
   const [board, setBoard] = useState<SudokuBoard>(createEmptyBoard(sudokuPresets[0].size));
   const [solution, setSolution] = useState<SudokuBoard | null>(null);
+  const [activeSection, setActiveSection] = useState<'problem' | 'solution'>('problem');
   const [message, setMessage] = useState<string | null>(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [shouldFocusSolution, setShouldFocusSolution] = useState(false);
+  const [solutionSectionY, setSolutionSectionY] = useState<number | null>(null);
   const { width } = useWindowDimensions();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const horizontalPadding = width < 540 ? 18 : 28;
+
+  useEffect(() => {
+    if (!solution || !shouldFocusSolution || solutionSectionY === null) {
+      return;
+    }
+
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(solutionSectionY - 24, 0),
+      animated: true,
+    });
+    setShouldFocusSolution(false);
+  }, [shouldFocusSolution, solution, solutionSectionY]);
 
   const handleSelectPreset = (preset: SudokuPreset) => {
     setSelectedPreset(preset);
     setBoard(createEmptyBoard(preset.size));
     setSolution(null);
+    setActiveSection('problem');
     setMessage(null);
+    setShowSuccessPopup(false);
+    setShouldFocusSolution(false);
+    setSolutionSectionY(null);
   };
 
   const handleChangeCell = (row: number, col: number, rawValue: string) => {
@@ -62,7 +85,9 @@ export function SudokuSolverApp() {
       ),
     );
     setSolution(null);
+    setActiveSection('problem');
     setMessage(null);
+    setShowSuccessPopup(false);
   };
 
   const handleSolve = () => {
@@ -93,7 +118,9 @@ export function SudokuSolverApp() {
     }
 
     setSolution(solvedBoard);
-    setMessage('Solved successfully. Your entries stay black and bold. Solver values appear in green.');
+    setActiveSection('solution');
+    setMessage(null);
+    setShowSuccessPopup(true);
   };
 
   const handleClearBoard = () => {
@@ -103,7 +130,26 @@ export function SudokuSolverApp() {
 
     setBoard(createEmptyBoard(selectedPreset.size));
     setSolution(null);
+    setActiveSection('problem');
     setMessage(null);
+    setShowSuccessPopup(false);
+    setShouldFocusSolution(false);
+    setSolutionSectionY(null);
+  };
+
+  const handleSolutionSectionLayout = (event: LayoutChangeEvent) => {
+    setSolutionSectionY(event.nativeEvent.layout.y);
+  };
+
+  const handleShowSolvedBoard = () => {
+    setShowSuccessPopup(false);
+    setShouldFocusSolution(true);
+  };
+
+  const handleBackToProblemBoard = () => {
+    setActiveSection('problem');
+    setShowSuccessPopup(false);
+    setShouldFocusSolution(false);
   };
 
   return (
@@ -112,14 +158,19 @@ export function SudokuSolverApp() {
       <View pointerEvents="none" style={styles.backgroundGlowTop} />
       <View pointerEvents="none" style={styles.backgroundGlowBottom} />
 
-      <ScrollView contentContainerStyle={[styles.page, { paddingHorizontal: horizontalPadding }]}>
-        <View style={styles.heroCard}>
-          <Text style={styles.eyebrow}>Sudoku Solver</Text>
-          <Text style={styles.heroTitle}>Solve Sudoku on web and mobile from one app.</Text>
-          <Text style={styles.heroSubtitle}>
-            Choose a board size, enter your puzzle in the empty grid, and see the solved result in the same block format.
-          </Text>
-        </View>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={[styles.page, { paddingHorizontal: horizontalPadding }]}
+      >
+        {!selectedPreset ? (
+          <View style={styles.heroCard}>
+            <Text style={styles.eyebrow}>Sudoku Solver</Text>
+            <Text style={styles.heroSubtitle}>
+              Choose a board size, enter your puzzle in the empty grid, and see the solved result in the same block
+              format.
+            </Text>
+          </View>
+        ) : null}
 
         {!selectedPreset ? (
           <View style={styles.surfaceCard}>
@@ -140,38 +191,44 @@ export function SudokuSolverApp() {
           </View>
         ) : (
           <View style={styles.surfaceCard}>
-            <View style={styles.workspaceHeader}>
-              <View style={styles.headerCopy}>
-                <Text style={styles.sectionTitle}>Enter Sudoku problem</Text>
-                <Text style={styles.sectionCopy}>
-                  Fill the empty block below using values from `1` to `{selectedPreset.size}`.
-                </Text>
+            {activeSection === 'problem' ? (
+              <View style={styles.workspaceHeader}>
+                <View style={styles.headerCopy}>
+                  <Text style={styles.sectionTitle}>Enter Sudoku problem</Text>
+                  <Text style={styles.sectionCopy}>
+                    Fill the empty block below using values from `1` to `{selectedPreset.size}`.
+                  </Text>
+                </View>
+
+                <View style={styles.headerActions}>
+                  <Pressable onPress={() => setSelectedPreset(null)} style={[styles.secondaryButton, styles.smallButton]}>
+                    <Text style={styles.secondaryButtonText}>Change size</Text>
+                  </Pressable>
+                  <Pressable onPress={handleClearBoard} style={[styles.secondaryButton, styles.smallButton]}>
+                    <Text style={styles.secondaryButtonText}>Clear</Text>
+                  </Pressable>
+                </View>
               </View>
+            ) : null}
 
-              <View style={styles.headerActions}>
-                <Pressable onPress={() => setSelectedPreset(null)} style={[styles.secondaryButton, styles.smallButton]}>
-                  <Text style={styles.secondaryButtonText}>Change size</Text>
+            {activeSection === 'problem' ? (
+              <>
+                <View style={styles.boardSection}>
+                  <Text style={styles.boardTitle}>Problem board</Text>
+                  <SudokuBoardView
+                    board={board}
+                    editable
+                    preset={selectedPreset}
+                    onChangeCell={handleChangeCell}
+                    width={width}
+                  />
+                </View>
+
+                <Pressable onPress={handleSolve} style={styles.primaryButton}>
+                  <Text style={styles.primaryButtonText}>Solve Sudoku</Text>
                 </Pressable>
-                <Pressable onPress={handleClearBoard} style={[styles.secondaryButton, styles.smallButton]}>
-                  <Text style={styles.secondaryButtonText}>Clear</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.boardSection}>
-              <Text style={styles.boardTitle}>Problem board</Text>
-              <SudokuBoardView
-                board={board}
-                editable
-                preset={selectedPreset}
-                onChangeCell={handleChangeCell}
-                width={width}
-              />
-            </View>
-
-            <Pressable onPress={handleSolve} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Solve Sudoku</Text>
-            </Pressable>
+              </>
+            ) : null}
 
             {message ? (
               <View style={styles.messageCard}>
@@ -179,9 +236,14 @@ export function SudokuSolverApp() {
               </View>
             ) : null}
 
-            {solution ? (
-              <View style={styles.boardSection}>
-                <Text style={styles.boardTitle}>Solved board</Text>
+            {solution && activeSection === 'solution' ? (
+              <View onLayout={handleSolutionSectionLayout} style={styles.boardSection}>
+                <View style={styles.solutionHeader}>
+                  <Text style={styles.boardTitle}>Solved board</Text>
+                  <Pressable onPress={handleBackToProblemBoard} style={[styles.secondaryButton, styles.smallButton]}>
+                    <Text style={styles.secondaryButtonText}>Back</Text>
+                  </Pressable>
+                </View>
 
                 <SudokuBoardView
                   board={solution}
@@ -195,6 +257,22 @@ export function SudokuSolverApp() {
           </View>
         )}
       </ScrollView>
+
+      {showSuccessPopup ? (
+        <View style={styles.popupOverlay}>
+          <BlurView intensity={48} tint="dark" style={styles.popupBlur} />
+          <View style={styles.popupScrim} />
+          <View style={styles.popupCard}>
+            <Text style={styles.popupTitle}>Sudoku solved</Text>
+            <Text style={styles.popupCopy}>
+              The solved board is ready below. Tap Show to jump straight to it.
+            </Text>
+            <Pressable onPress={handleShowSolvedBoard} style={styles.popupButton}>
+              <Text style={styles.popupButtonText}>Show</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -411,6 +489,56 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingTop: 18,
   },
+  popupButton: {
+    alignItems: 'center',
+    backgroundColor: '#0f766e',
+    borderRadius: 999,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+  },
+  popupButtonText: {
+    color: '#fffdf8',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  popupBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  popupCard: {
+    backgroundColor: '#fffdf8',
+    borderRadius: 24,
+    gap: 12,
+    maxWidth: 360,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    width: '88%',
+  },
+  popupCopy: {
+    color: '#556169',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  popupOverlay: {
+    alignItems: 'center',
+    bottom: 0,
+    justifyContent: 'center',
+    left: 0,
+    paddingHorizontal: 20,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  popupScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(19, 34, 38, 0.18)',
+  },
+  popupTitle: {
+    color: '#132226',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
   presetCard: {
     backgroundColor: '#fffdf8',
     borderColor: '#dae2dd',
@@ -459,6 +587,13 @@ const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: '#f3ecdf',
     flex: 1,
+  },
+  solutionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'space-between',
   },
   secondaryButton: {
     alignItems: 'center',
